@@ -30,14 +30,16 @@ type Window struct {
 }
 type Event struct {
     eventType EventType
-    window Window
-    time uint
+    window    Window
+    time      uint
 }
 
 func main() {
     var err error
     var msg []byte
+
 	createSocket()
+
     for {
         if msg, err = sock.Recv(); err != nil {
             die("Cannot recv: %s", err.Error())
@@ -95,7 +97,7 @@ func parseMessage(message string) (event Event) {
 
     return Event {
         eventType: eventType,
-        window: window,
-        time: uint(time),
+        window:    window,
+        time:      uint(time),
     }
 }
