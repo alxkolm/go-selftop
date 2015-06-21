@@ -34,6 +34,17 @@ type Event struct {
     time      uint
 }
 
+type Counter struct {
+    motions uint
+    clicks  uint
+    keys    uint
+    time    uint
+}
+
+
+var prevEvent Event
+var counter Counter
+
 func main() {
     var err error
     var msg []byte
@@ -45,7 +56,7 @@ func main() {
             die("Cannot recv: %s", err.Error())
         }
         event := parseMessage(string(msg))
-        fmt.Printf("%d %d %s\n", event.eventType, event.time, event.window.title)
+        processEvent(event)
     }
 }
 
@@ -100,4 +111,41 @@ func parseMessage(message string) (event Event) {
         window:    window,
         time:      uint(time),
     }
+}
+
+func processEvent(event Event) {
+    defer func(){prevEvent = event}()
+
+    if prevEvent.time == 0 {
+        return
+    }
+
+    delta := event.time - prevEvent.time
+    counter.time += delta
+
+    switch event.eventType {
+    case MotionEvent:
+        // filter mouse motions
+        if prevEvent.eventType != MotionEvent || delta > 200 {
+            counter.motions += 1
+        }
+    case ClickEvent:
+        counter.clicks += 1
+    case KeyEvent:
+        counter.keys += 1
+    }
+
+    if prevEvent.window != event.window {
+        // TODO save record to DB for window from prevEvent
+
+        // reset counter
+        counter = Counter {
+            motions: 0,
+            clicks:  0,
+            keys:    0,
+            time:    0,
+        }
+    }
+    
+    fmt.Printf("Window %s time %.3f sec motions: %d, clicks: %d, keys: %d\n", event.window.class, float32(counter.time)/1000, counter.motions, counter.clicks, counter.keys)
 }
