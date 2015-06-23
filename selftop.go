@@ -125,7 +125,7 @@ func parseMessage(message string) (event Event) {
 
 func processEvent(event Event) {
     defer func(){prevEvent = event}()
-    windowId := processWindow(event.window)
+    processWindow(event.window)
     if prevEvent.time == 0 {
         return
     }
@@ -147,6 +147,7 @@ func processEvent(event Event) {
 
     if prevEvent.window != event.window {
         // TODO save record to DB for window from prevEvent
+        windowId := windows[prevEvent.window]
         insertMetricsCommand.Exec(
             windowId,
             counter.time,
