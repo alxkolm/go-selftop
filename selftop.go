@@ -12,7 +12,8 @@ import (
     "strconv"
     // "time"
     "database/sql"
-    _ "github.com/go-sql-driver/mysql"
+    // _ "github.com/go-sql-driver/mysql"
+    _ "github.com/mattn/go-sqlite3"
 )
 
 var sock mangos.Socket
@@ -188,11 +189,13 @@ func bootstrapData() {
     windows = make(map[Window]int64)
     var err error
 
-    db, err = sql.Open("mysql", "root@/selftop")
+    db, err = sql.Open("sqlite3", "./selftop.db")
     if err != nil {
         panic("Could not create db connection")
     }
     
+    initDbSchema()
+
     insertWindowCommand, err = db.Prepare(
         "INSERT INTO window (title, class) VALUES (?,?)")
     if err != nil {
@@ -206,8 +209,33 @@ func bootstrapData() {
     }
 
     insertMetricsCommand, err = db.Prepare(
-        "INSERT INTO metrics SET window_id = ?, time = ?, motions = ?, clicks = ?, `keys` = ?")
+        "INSERT INTO metrics (window_id, time, motions, clicks, keys) VALUES (?, ?, ?, ?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
+    }
+}
+
+func initDbSchema() {
+    sql := `
+    CREATE TABLE IF NOT EXISTS window (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT,
+        class TEXT,
+        created INTEGER DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS metrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        window_id INTEGER NOT NULL,
+        time INTEGER DEFAULT 0,
+        motions INTEGER DEFAULT 0,
+        clicks INTEGER DEFAULT 0,
+        keys INTEGER DEFAULT 0,
+        created INTEGER DEFAULT CURRENT_TIMESTAMP
+    );`
+
+    _, err := db.Exec(sql)
+    if (err != nil) {
+        panic("Could not init database schema. " + err.Error());
     }
 }
