@@ -10,7 +10,7 @@ import (
     "os"
     "strings"
     "strconv"
-    // "time"
+    "time"
     "database/sql"
     // _ "github.com/go-sql-driver/mysql"
     _ "github.com/mattn/go-sqlite3"
@@ -38,10 +38,13 @@ type Event struct {
 }
 
 type Counter struct {
-    motions uint
-    clicks  uint
-    keys    uint
-    time    uint
+    motions         uint
+    filteredMotions uint
+    clicks          uint
+    keys            uint
+    time            uint
+    start           time.Time
+    end             time.Time
 }
 
 
@@ -52,7 +55,7 @@ var db *sql.DB
 var windows map[Window]int64
 var insertWindowCommand *sql.Stmt
 var selectWindowCommand *sql.Stmt
-var insertMetricsCommand *sql.Stmt
+var insertActivityCommand *sql.Stmt
 
 func main() {
     var err error
@@ -128,6 +131,7 @@ func processEvent(event Event) {
     defer func(){prevEvent = event}()
     processWindow(event.window)
     if prevEvent.time == 0 {
+        counter.start = time.Now()
         return
     }
 
@@ -137,8 +141,9 @@ func processEvent(event Event) {
     switch event.eventType {
     case MotionEvent:
         // filter mouse motions
+        counter.motions += 1
         if prevEvent.eventType != MotionEvent || delta > 200 {
-            counter.motions += 1
+            counter.filteredMotions += 1
         }
     case ClickEvent:
         counter.clicks += 1
@@ -148,19 +153,27 @@ func processEvent(event Event) {
 
     if prevEvent.window != event.window {
         // TODO save record to DB for window from prevEvent
+        now := time.Now();
         windowId := windows[prevEvent.window]
-        insertMetricsCommand.Exec(
+        counter.end = now
+        duration := counter.end.Sub(counter.start)
+        insertActivityCommand.Exec(
             windowId,
-            counter.time,
+            counter.start.Format(time.RFC3339Nano),
+            counter.end.Format(time.RFC3339Nano),
+            duration / time.Millisecond,
             counter.motions,
+            counter.filteredMotions,
             counter.clicks,
             counter.keys)
         // reset counter
         counter = Counter {
-            motions: 0,
-            clicks:  0,
-            keys:    0,
-            time:    0,
+            motions:         0,
+            filteredMotions: 0,
+            clicks:          0,
+            keys:            0,
+            time:            0,
+            start:           now,
         }
     }
     
@@ -208,8 +221,8 @@ func bootstrapData() {
         panic("Could not create prepared statement." + err.Error())
     }
 
-    insertMetricsCommand, err = db.Prepare(
-        "INSERT INTO metrics (window_id, time, motions, clicks, keys) VALUES (?, ?, ?, ?, ?)")
+    insertActivityCommand, err = db.Prepare(
+        "INSERT INTO activity (window_id, start, end, duration, motions, motions_filtered, clicks, keys) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
     }
@@ -218,21 +231,42 @@ func bootstrapData() {
 func initDbSchema() {
     sql := `
     CREATE TABLE IF NOT EXISTS window (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        class TEXT,
-        created INTEGER DEFAULT CURRENT_TIMESTAMP
+        id      INTEGER PRIMARY KEY AUTOINCREMENT,
+        title   TEXT,
+        class   TEXT,
+        created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS metrics (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        window_id INTEGER NOT NULL,
-        time INTEGER DEFAULT 0,
-        motions INTEGER DEFAULT 0,
-        clicks INTEGER DEFAULT 0,
-        keys INTEGER DEFAULT 0,
-        created INTEGER DEFAULT CURRENT_TIMESTAMP
-    );`
+    CREATE TABLE IF NOT EXISTS activity (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        window_id        INTEGER NOT NULL,
+        start            DATETIME NOT NULL,
+        end              DATETIME NOT NULL,
+        duration         INTEGER NOT NULL DEFAULT 0,
+        motions          INTEGER NOT NULL DEFAULT 0,
+        motions_filtered INTEGER NOT NULL DEFAULT 0,
+        clicks           INTEGER NOT NULL DEFAULT 0,
+        keys             INTEGER NOT NULL DEFAULT 0,
+        created          DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE TABLE IF NOT EXISTS keys (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        window_id   INTEGER NOT NULL,
+        key         INTEGER DEFAULT 0,
+        created     DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS clicks (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        window_id        INTEGER NOT NULL,
+        button           INTEGER NOT NULL,
+        motions          INTEGER DEFAULT 0,
+        motions_filtered INTEGER DEFAULT 0,
+        created          DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+`
 
     _, err := db.Exec(sql)
     if (err != nil) {
