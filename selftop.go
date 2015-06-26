@@ -35,6 +35,7 @@ type Event struct {
     eventType EventType
     window    Window
     time      uint
+    timestamp int64
 }
 
 type Counter struct {
@@ -119,11 +120,13 @@ func parseMessage(message string) (event Event) {
         eventType = UnknownEvent
     }
     time, _ := strconv.ParseInt(parts[2], 0, 0)
+    timestamp, _ := strconv.ParseInt(parts[5], 0, 0)
 
     return Event {
         eventType: eventType,
         window:    window,
         time:      uint(time),
+        timestamp: timestamp,
     }
 }
 
@@ -131,7 +134,7 @@ func processEvent(event Event) {
     defer func(){prevEvent = event}()
     processWindow(event.window)
     if prevEvent.time == 0 {
-        counter.start = time.Now()
+        counter.start = time.Unix(event.timestamp, 0)
         return
     }
 
@@ -152,10 +155,8 @@ func processEvent(event Event) {
     }
 
     if prevEvent.window != event.window {
-        // TODO save record to DB for window from prevEvent
-        now := time.Now();
         windowId := windows[prevEvent.window]
-        counter.end = now
+        counter.end = time.Unix(event.timestamp, 0)
         duration := counter.end.Sub(counter.start)
         insertActivityCommand.Exec(
             windowId,
@@ -173,7 +174,7 @@ func processEvent(event Event) {
             clicks:          0,
             keys:            0,
             time:            0,
-            start:           now,
+            start:           time.Unix(event.timestamp, 0),
         }
     }
     
