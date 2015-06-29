@@ -28,10 +28,14 @@ const (
     UnknownEvent EventType = 1 << iota
 )
 type Window struct {
-    title string
-    class string
-    pid   int64
-    proc_name string
+    title     string
+    class     string
+    pid       int64
+    process   Process
+}
+type Process struct {
+    name    string
+    cmdline string
 }
 type Event struct {
     eventType EventType
@@ -56,7 +60,7 @@ var counter Counter
 var db *sql.DB
 // Map windows to ID in DB
 var windows map[Window]int64
-var procs map[string]int64
+var procs map[Process]int64
 var insertWindowCommand *sql.Stmt
 var selectWindowCommand *sql.Stmt
 var insertActivityCommand *sql.Stmt
@@ -130,7 +134,10 @@ func parseMessage(message string) (event Event) {
         title:     parts[3],
         class:     parts[4],
         pid:       pid,
-        proc_name: parts[7],
+        process:   Process {
+            name:    parts[7],
+            cmdline: parts[8],
+        },
     }
 
     return Event {
@@ -199,21 +206,22 @@ func processEvent(event Event) {
 
 func processWindow(window Window) int64 {
     // Process proc_name
-    if _, ok := procs[window.proc_name]; !ok {
+    if _, ok := procs[window.process]; !ok {
         // try to find procs in db
         var id int64
-        err := selectProcessCommand.QueryRow(window.proc_name).Scan(&id)
+        err := selectProcessCommand.QueryRow(window.process.name, window.process.cmdline).Scan(&id)
         switch err {
         case sql.ErrNoRows:
             // store window to db
-            res, _ := insertProcessCommand.Exec(window.proc_name)
+            res, _ := insertProcessCommand.Exec(window.process.name, window.process.cmdline)
             id, _ = res.LastInsertId()
-            procs[window.proc_name] = id
+            procs[window.process] = id
         default:
-            procs[window.proc_name] = id
-        }   
+            procs[window.process] = id
+        }
+        fmt.Printf("cmdline = %s", window.process.cmdline)
     }
-    proc_id := procs[window.proc_name]
+    proc_id := procs[window.process]
 
     // Process window
     if _, ok := windows[window]; !ok {
@@ -235,7 +243,7 @@ func processWindow(window Window) int64 {
 
 func bootstrapData() {
     windows = make(map[Window]int64)
-    procs   = make(map[string]int64)
+    procs   = make(map[Process]int64)
     var err error
 
     db, err = sql.Open("sqlite3", "./selftop.db")
@@ -258,13 +266,13 @@ func bootstrapData() {
     }
 
     selectProcessCommand, err = db.Prepare(
-        "SELECT id FROM process WHERE name = ? LIMIT 1")
+        "SELECT id FROM process WHERE name = ? AND cmdline = ? LIMIT 1")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
     }
 
     insertProcessCommand, err = db.Prepare(
-        "INSERT INTO process (name) VALUES (?)")
+        "INSERT INTO process (name, cmdline) VALUES (?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
     }
@@ -290,6 +298,7 @@ func initDbSchema() {
     CREATE TABLE IF NOT EXISTS process (
         id      INTEGER PRIMARY KEY AUTOINCREMENT,
         name    TEXT,
+        cmdline TEXT,
         created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
