@@ -30,6 +30,8 @@ const (
 type Window struct {
     title string
     class string
+    pid   int64
+    proc_name string
 }
 type Event struct {
     eventType EventType
@@ -54,9 +56,12 @@ var counter Counter
 var db *sql.DB
 // Map windows to ID in DB
 var windows map[Window]int64
+var procs map[string]int64
 var insertWindowCommand *sql.Stmt
 var selectWindowCommand *sql.Stmt
 var insertActivityCommand *sql.Stmt
+var insertProcessCommand *sql.Stmt
+var selectProcessCommand *sql.Stmt
 
 const idleTimeout = 300 * 1000 // milliseconds
 
@@ -103,10 +108,6 @@ func die(format string, v ...interface{}) {
 
 func parseMessage(message string) (event Event) {
     var parts = strings.Split(message, "\n")
-    window := Window {
-        title: parts[3],
-        class: parts[4],
-    }
     var eventType EventType
 
     switch parts[1] {
@@ -121,8 +122,16 @@ func parseMessage(message string) (event Event) {
     default:
         eventType = UnknownEvent
     }
-    time, _ := strconv.ParseInt(parts[2], 0, 0)
+    time, _      := strconv.ParseInt(parts[2], 0, 0)
     timestamp, _ := strconv.ParseInt(parts[5], 0, 0)
+    pid, _       := strconv.ParseInt(parts[6], 0, 0)
+
+    window := Window {
+        title:     parts[3],
+        class:     parts[4],
+        pid:       pid,
+        proc_name: parts[7],
+    }
 
     return Event {
         eventType: eventType,
@@ -172,7 +181,8 @@ func processEvent(event Event) {
             counter.motions,
             counter.filteredMotions,
             counter.clicks,
-            counter.keys)
+            counter.keys,
+            prevEvent.window.pid)
         // reset counter
         counter = Counter {
             motions:         0,
@@ -188,14 +198,32 @@ func processEvent(event Event) {
 }
 
 func processWindow(window Window) int64 {
-    if _, ok := windows[window]; !ok {
-        // try to find window in db
+    // Process proc_name
+    if _, ok := procs[window.proc_name]; !ok {
+        // try to find procs in db
         var id int64
-        err := selectWindowCommand.QueryRow(window.title, window.class).Scan(&id)
+        err := selectProcessCommand.QueryRow(window.proc_name).Scan(&id)
         switch err {
         case sql.ErrNoRows:
             // store window to db
-            res, _ := insertWindowCommand.Exec(window.title, window.class)
+            res, _ := insertProcessCommand.Exec(window.proc_name)
+            id, _ = res.LastInsertId()
+            procs[window.proc_name] = id
+        default:
+            procs[window.proc_name] = id
+        }   
+    }
+    proc_id := procs[window.proc_name]
+
+    // Process window
+    if _, ok := windows[window]; !ok {
+        // try to find window in db
+        var id int64
+        err := selectWindowCommand.QueryRow(window.title, window.class, proc_id).Scan(&id)
+        switch err {
+        case sql.ErrNoRows:
+            // store window to db
+            res, _ := insertWindowCommand.Exec(window.title, window.class, proc_id)
             id, _ = res.LastInsertId()
             windows[window] = id
         default:
@@ -207,6 +235,7 @@ func processWindow(window Window) int64 {
 
 func bootstrapData() {
     windows = make(map[Window]int64)
+    procs   = make(map[string]int64)
     var err error
 
     db, err = sql.Open("sqlite3", "./selftop.db")
@@ -217,19 +246,32 @@ func bootstrapData() {
     initDbSchema()
 
     insertWindowCommand, err = db.Prepare(
-        "INSERT INTO window (title, class) VALUES (?,?)")
+        "INSERT INTO window (title, class, process_id) VALUES (?,?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
     }
 
     selectWindowCommand, err = db.Prepare(
-        "SELECT id FROM window WHERE title = ? AND class = ? LIMIT 1")
+        "SELECT id FROM window WHERE title = ? AND class = ? AND process_id = ? LIMIT 1")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
     }
 
+    selectProcessCommand, err = db.Prepare(
+        "SELECT id FROM process WHERE name = ? LIMIT 1")
+    if err != nil {
+        panic("Could not create prepared statement." + err.Error())
+    }
+
+    insertProcessCommand, err = db.Prepare(
+        "INSERT INTO process (name) VALUES (?)")
+    if err != nil {
+        panic("Could not create prepared statement." + err.Error())
+    }
+
+
     insertActivityCommand, err = db.Prepare(
-        "INSERT INTO activity (window_id, start, end, duration, motions, motions_filtered, clicks, keys) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        "INSERT INTO activity (window_id, start, end, duration, motions, motions_filtered, clicks, keys, pid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
     }
@@ -238,14 +280,22 @@ func bootstrapData() {
 func initDbSchema() {
     sql := `
     CREATE TABLE IF NOT EXISTS window (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        process_id INTEGER,
+        title      TEXT,
+        class      TEXT,
+        created    DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS process (
         id      INTEGER PRIMARY KEY AUTOINCREMENT,
-        title   TEXT,
-        class   TEXT,
+        name    TEXT,
         created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS activity (
         id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        pid              INTEGER NOT NULL,
         window_id        INTEGER NOT NULL,
         start            DATETIME NOT NULL,
         end              DATETIME NOT NULL,
