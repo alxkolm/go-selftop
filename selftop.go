@@ -58,6 +58,8 @@ var insertWindowCommand *sql.Stmt
 var selectWindowCommand *sql.Stmt
 var insertActivityCommand *sql.Stmt
 
+const idleTimeout = 300 * 1000 // milliseconds
+
 func main() {
     var err error
     var msg []byte
@@ -154,9 +156,13 @@ func processEvent(event Event) {
         counter.keys += 1
     }
 
-    if prevEvent.window != event.window {
+    if prevEvent.window != event.window || (event.time - prevEvent.time) > idleTimeout {
+        if (event.time - prevEvent.time) > idleTimeout {
+            counter.end = time.Unix(prevEvent.timestamp, 0)
+        } else {
+            counter.end = time.Unix(event.timestamp, 0)
+        }
         windowId := windows[prevEvent.window]
-        counter.end = time.Unix(event.timestamp, 0)
         duration := counter.end.Sub(counter.start)
         insertActivityCommand.Exec(
             windowId,
