@@ -219,7 +219,6 @@ func processWindow(window Window) int64 {
         default:
             procs[window.process] = id
         }
-        fmt.Printf("cmdline = %s", window.process.cmdline)
     }
     proc_id := procs[window.process]
 
