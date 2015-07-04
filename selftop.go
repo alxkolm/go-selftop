@@ -298,6 +298,7 @@ func initDbSchema() {
         id      INTEGER PRIMARY KEY AUTOINCREMENT,
         name    TEXT,
         cmdline TEXT,
+        alias   TEXT,
         created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
