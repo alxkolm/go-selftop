@@ -9,11 +9,11 @@ import (
     "github.com/gdamore/mangos/transport/tcp"
     "os"
     "strings"
-    "strconv"
     "time"
     "database/sql"
     // _ "github.com/go-sql-driver/mysql"
     _ "github.com/mattn/go-sqlite3"
+    "encoding/json"
 )
 
 var sock mangos.Socket
@@ -52,6 +52,18 @@ type Counter struct {
     time            uint
     start           time.Time
     end             time.Time
+}
+
+type Message struct {
+    Event_type   string
+    Xserver_time int64
+    Timestamp    int64
+    Wm_name      string
+    Wm_class     string
+    Pid          int64
+    Proc_name    string
+    Proc_cmd     string
+    Code         uint8
 }
 
 
@@ -112,9 +124,15 @@ func die(format string, v ...interface{}) {
 
 func parseMessage(message string) (event Event) {
     var parts = strings.Split(message, "\n")
-    var eventType EventType
+    var m Message
+    err := json.Unmarshal([]byte(parts[1]), &m)
+    if err != nil {
+        panic("parse error")
+    }
 
-    switch parts[1] {
+    var eventType EventType
+    
+    switch m.Event_type {
     case "MotionEvent":
         eventType = MotionEvent
     case "EnterEvent":
@@ -126,25 +144,22 @@ func parseMessage(message string) (event Event) {
     default:
         eventType = UnknownEvent
     }
-    time, _      := strconv.ParseInt(parts[2], 0, 0)
-    timestamp, _ := strconv.ParseInt(parts[5], 0, 0)
-    pid, _       := strconv.ParseInt(parts[6], 0, 0)
-
+    
     window := Window {
-        title:     parts[3],
-        class:     parts[4],
-        pid:       pid,
+        title:     m.Wm_name,
+        class:     m.Wm_class,
+        pid:       m.Pid,
         process:   Process {
-            name:    parts[7],
-            cmdline: parts[8],
+            name:    m.Proc_name,
+            cmdline: m.Proc_cmd,
         },
     }
 
     return Event {
         eventType: eventType,
         window:    window,
-        time:      uint(time),
-        timestamp: timestamp,
+        time:      uint(m.Xserver_time),
+        timestamp: m.Timestamp,
     }
 }
 
