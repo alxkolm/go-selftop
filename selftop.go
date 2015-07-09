@@ -77,7 +77,7 @@ var windows map[Window]int64
 var procs map[Process]int64
 var insertWindowCommand *sql.Stmt
 var selectWindowCommand *sql.Stmt
-var insertActivityCommand *sql.Stmt
+var insertRecordCommand *sql.Stmt
 var insertProcessCommand *sql.Stmt
 var selectProcessCommand *sql.Stmt
 
@@ -202,7 +202,7 @@ func processEvent(event Event) {
         }
         windowId := windows[prevEvent.window]
         duration := counter.end.Sub(counter.start)
-        insertActivityCommand.Exec(
+        insertRecordCommand.Exec(
             windowId,
             counter.start.Format(time.RFC3339Nano),
             counter.end.Format(time.RFC3339Nano),
@@ -301,8 +301,8 @@ func bootstrapData() {
     }
 
 
-    insertActivityCommand, err = db.Prepare(
-        "INSERT INTO activity (window_id, start, end, duration, motions, motions_filtered, clicks, scrolls, keys, pid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    insertRecordCommand, err = db.Prepare(
+        "INSERT INTO record (window_id, start, end, duration, motions, motions_filtered, clicks, scrolls, keys, pid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
     }
@@ -326,7 +326,7 @@ func initDbSchema() {
         created DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
-    CREATE TABLE IF NOT EXISTS activity (
+    CREATE TABLE IF NOT EXISTS record (
         id               INTEGER PRIMARY KEY AUTOINCREMENT,
         pid              INTEGER NOT NULL,
         window_id        INTEGER NOT NULL,
