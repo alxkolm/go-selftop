@@ -42,12 +42,14 @@ type Event struct {
     window    Window
     time      uint
     timestamp int64
+    code      uint8
 }
 
 type Counter struct {
     motions         uint
     filteredMotions uint
     clicks          uint
+    scrolls         uint
     keys            uint
     time            uint
     start           time.Time
@@ -160,6 +162,7 @@ func parseMessage(message string) (event Event) {
         window:    window,
         time:      uint(m.Xserver_time),
         timestamp: m.Timestamp,
+        code:      m.Code,
     }
 }
 
@@ -182,7 +185,11 @@ func processEvent(event Event) {
             counter.filteredMotions += 1
         }
     case ClickEvent:
-        counter.clicks += 1
+        if event.code == 4 || event.code == 5 || event.code == 6 || event.code == 7 {
+            counter.scrolls += 1
+        } else {
+            counter.clicks += 1
+        }
     case KeyEvent:
         counter.keys += 1
     }
@@ -203,6 +210,7 @@ func processEvent(event Event) {
             counter.motions,
             counter.filteredMotions,
             counter.clicks,
+            counter.scrolls,
             counter.keys,
             prevEvent.window.pid)
         // reset counter
@@ -210,6 +218,7 @@ func processEvent(event Event) {
             motions:         0,
             filteredMotions: 0,
             clicks:          0,
+            scrolls:         0,
             keys:            0,
             time:            0,
             start:           time.Unix(event.timestamp, 0),
@@ -293,7 +302,7 @@ func bootstrapData() {
 
 
     insertActivityCommand, err = db.Prepare(
-        "INSERT INTO activity (window_id, start, end, duration, motions, motions_filtered, clicks, keys, pid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        "INSERT INTO activity (window_id, start, end, duration, motions, motions_filtered, clicks, scrolls, keys, pid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
     }
@@ -327,6 +336,7 @@ func initDbSchema() {
         motions          INTEGER NOT NULL DEFAULT 0,
         motions_filtered INTEGER NOT NULL DEFAULT 0,
         clicks           INTEGER NOT NULL DEFAULT 0,
+        scrolls          INTEGER NOT NULL DEFAULT 0,
         keys             INTEGER NOT NULL DEFAULT 0,
         created          DATETIME DEFAULT CURRENT_TIMESTAMP
     );
