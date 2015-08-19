@@ -7,6 +7,7 @@ import (
     "github.com/gdamore/mangos/protocol/sub"
     // "github.com/gdamore/mangos/transport/ipc"
     "github.com/gdamore/mangos/transport/tcp"
+    "github.com/mitchellh/go-homedir"
     "os"
     "strings"
     "time"
@@ -269,7 +270,21 @@ func bootstrapData() {
     procs   = make(map[Process]int64)
     var err error
 
-    db, err = sql.Open("sqlite3", "./selftop.db")
+    // Determine path to db
+    homePath, err := homedir.Dir()
+    if err != nil {
+        panic("Could not get user's HOME path")
+    }
+    homePath, err = homedir.Expand(homePath)
+    if err != nil {
+        panic("Could not exepnd '~' in user's HOME path")
+    }
+    dbPath := homePath + "/.selftop/selftop.db"
+    fmt.Printf("DB path: %s\n", dbPath)
+
+    
+    // Init db connection
+    db, err = sql.Open("sqlite3", dbPath)
     if err != nil {
         panic("Could not create db connection")
     }
