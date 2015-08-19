@@ -279,6 +279,13 @@ func bootstrapData() {
     if err != nil {
         panic("Could not exepnd '~' in user's HOME path")
     }
+
+    // Create .selftop directory
+    err = os.Mkdir(homePath + "/.selftop", 0775);
+    if err != nil && !os.IsExist(err) {
+        panic("Error: " + err.Error())
+    }
+
     dbPath := homePath + "/.selftop/selftop.db"
     fmt.Printf("DB path: %s\n", dbPath)
 
