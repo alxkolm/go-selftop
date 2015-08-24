@@ -345,7 +345,8 @@ func initDbSchema() {
         name    TEXT,
         cmdline TEXT,
         alias   TEXT,
-        created DATETIME DEFAULT CURRENT_TIMESTAMP
+        created DATETIME DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT name_cmd UNIQUE (name, cmdline)
     );
 
     CREATE TABLE IF NOT EXISTS record (
