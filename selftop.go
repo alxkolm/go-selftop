@@ -81,6 +81,7 @@ var selectWindowCommand *sql.Stmt
 var insertRecordCommand *sql.Stmt
 var insertProcessCommand *sql.Stmt
 var selectProcessCommand *sql.Stmt
+var insertKeyCommand *sql.Stmt
 
 const idleTimeout = 300 * 1000 // milliseconds
 
@@ -192,6 +193,7 @@ func processEvent(event Event) {
             counter.clicks += 1
         }
     case KeyEvent:
+        insertKeyCommand.Exec(windows[event.window], event.code)
         counter.keys += 1
     }
 
@@ -325,6 +327,12 @@ func bootstrapData() {
 
     insertRecordCommand, err = db.Prepare(
         "INSERT INTO record (window_id, start, end, duration, motions, motions_filtered, clicks, scrolls, keys, pid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    if err != nil {
+        panic("Could not create prepared statement." + err.Error())
+    }
+
+    insertKeyCommand, err = db.Prepare(
+        "INSERT INTO keys (window_id, key) VALUES (?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
     }
