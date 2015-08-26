@@ -82,6 +82,7 @@ var insertRecordCommand *sql.Stmt
 var insertProcessCommand *sql.Stmt
 var selectProcessCommand *sql.Stmt
 var insertKeyCommand *sql.Stmt
+var tx *sql.Tx
 
 const idleTimeout = 300 * 1000 // milliseconds
 
@@ -170,6 +171,7 @@ func parseMessage(message string) (event Event) {
 
 func processEvent(event Event) {
     defer func(){prevEvent = event}()
+    var err error
     processWindow(event.window)
     if prevEvent.time == 0 {
         counter.start = time.Unix(event.timestamp, 0)
@@ -193,7 +195,7 @@ func processEvent(event Event) {
             counter.clicks += 1
         }
     case KeyEvent:
-        insertKeyCommand.Exec(windows[event.window], event.code)
+        tx.Stmt(insertKeyCommand).Exec(windows[event.window], event.code)
         counter.keys += 1
     }
 
@@ -205,7 +207,7 @@ func processEvent(event Event) {
         }
         windowId := windows[prevEvent.window]
         duration := counter.end.Sub(counter.start)
-        insertRecordCommand.Exec(
+        tx.Stmt(insertRecordCommand).Exec(
             windowId,
             counter.start.Format(time.RFC3339Nano),
             counter.end.Format(time.RFC3339Nano),
@@ -226,6 +228,13 @@ func processEvent(event Event) {
             time:            0,
             start:           time.Unix(event.timestamp, 0),
         }
+
+        // Commit transaction and start new one
+        tx.Commit()
+        tx, err = db.Begin();
+        if err != nil {
+            panic("Could not start db transaction")
+        }
     }
     
     fmt.Printf("Window %s time %.3f sec motions: %d, clicks: %d, keys: %d\n", event.window.class, float32(counter.time)/1000, counter.motions, counter.clicks, counter.keys)
@@ -236,11 +245,11 @@ func processWindow(window Window) int64 {
     if _, ok := procs[window.process]; !ok {
         // try to find procs in db
         var id int64
-        err := selectProcessCommand.QueryRow(window.process.name, window.process.cmdline).Scan(&id)
+        err := tx.Stmt(selectProcessCommand).QueryRow(window.process.name, window.process.cmdline).Scan(&id)
         switch err {
         case sql.ErrNoRows:
             // store window to db
-            res, _ := insertProcessCommand.Exec(window.process.name, window.process.cmdline)
+            res, _ := tx.Stmt(insertProcessCommand).Exec(window.process.name, window.process.cmdline)
             id, _ = res.LastInsertId()
             procs[window.process] = id
         default:
@@ -253,11 +262,11 @@ func processWindow(window Window) int64 {
     if _, ok := windows[window]; !ok {
         // try to find window in db
         var id int64
-        err := selectWindowCommand.QueryRow(window.title, window.class, proc_id).Scan(&id)
+        err := tx.Stmt(selectWindowCommand).QueryRow(window.title, window.class, proc_id).Scan(&id)
         switch err {
         case sql.ErrNoRows:
             // store window to db
-            res, _ := insertWindowCommand.Exec(window.title, window.class, proc_id)
+            res, _ := tx.Stmt(insertWindowCommand).Exec(window.title, window.class, proc_id)
             id, _ = res.LastInsertId()
             windows[window] = id
         default:
@@ -335,6 +344,12 @@ func bootstrapData() {
         "INSERT INTO keys (window_id, key) VALUES (?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
+    }
+
+    // Begin transaction
+    tx, err = db.Begin()
+    if err != nil {
+        panic("Could not start db transaction")
     }
 }
 
