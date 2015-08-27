@@ -195,7 +195,8 @@ func processEvent(event Event) {
             counter.clicks += 1
         }
     case KeyEvent:
-        tx.Stmt(insertKeyCommand).Exec(windows[event.window], event.code)
+        t := time.Unix(event.timestamp, 0)
+        tx.Stmt(insertKeyCommand).Exec(windows[event.window], event.code, t.Format(time.RFC3339Nano))
         counter.keys += 1
     }
 
@@ -341,7 +342,7 @@ func bootstrapData() {
     }
 
     insertKeyCommand, err = db.Prepare(
-        "INSERT INTO keys (window_id, key) VALUES (?, ?)")
+        "INSERT INTO keys (window_id, key, at) VALUES (?, ?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
     }
@@ -391,6 +392,7 @@ func initDbSchema() {
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         window_id   INTEGER NOT NULL,
         key         INTEGER DEFAULT 0,
+        at          DATETIME NOT NULL,
         created     DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
