@@ -72,10 +72,14 @@ type Message struct {
 
 var prevEvent Event
 var counter Counter
-var db *sql.DB
+
 // Map windows to ID in DB
 var windows map[Window]int64
 var procs map[Process]int64
+var keys []Event
+
+// DB
+var db *sql.DB
 var insertWindowCommand *sql.Stmt
 var selectWindowCommand *sql.Stmt
 var insertRecordCommand *sql.Stmt
@@ -195,8 +199,7 @@ func processEvent(event Event) {
             counter.clicks += 1
         }
     case KeyEvent:
-        t := time.Unix(event.timestamp, 0)
-        tx.Stmt(insertKeyCommand).Exec(windows[event.window], event.code, t.Format(time.RFC3339Nano))
+        keys = append(keys, event)
         counter.keys += 1
     }
 
@@ -208,6 +211,12 @@ func processEvent(event Event) {
         }
         windowId := windows[prevEvent.window]
         duration := counter.end.Sub(counter.start)
+        // Start new transaction
+        tx, err = db.Begin();
+        if err != nil {
+            panic("Could not start db transaction")
+        }
+        // store record
         tx.Stmt(insertRecordCommand).Exec(
             windowId,
             counter.start.Format(time.RFC3339Nano),
@@ -219,6 +228,14 @@ func processEvent(event Event) {
             counter.scrolls,
             counter.keys,
             prevEvent.window.pid)
+        // Store keys
+        txInsertKeyCommand := tx.Stmt(insertKeyCommand)
+        for i := 0; i < len(keys); i++ {
+            t := time.Unix(keys[i].timestamp, 0)
+            txInsertKeyCommand.Exec(windows[keys[i].window], keys[i].code, t.Format(time.RFC3339Nano))
+        }
+        // reset keys
+        keys = make([]Event, 0)
         // reset counter
         counter = Counter {
             motions:         0,
@@ -230,12 +247,8 @@ func processEvent(event Event) {
             start:           time.Unix(event.timestamp, 0),
         }
 
-        // Commit transaction and start new one
+        // Commit transaction
         tx.Commit()
-        tx, err = db.Begin();
-        if err != nil {
-            panic("Could not start db transaction")
-        }
     }
     
     fmt.Printf("Window %s time %.3f sec motions: %d, clicks: %d, keys: %d\n", event.window.class, float32(counter.time)/1000, counter.motions, counter.clicks, counter.keys)
@@ -246,11 +259,11 @@ func processWindow(window Window) int64 {
     if _, ok := procs[window.process]; !ok {
         // try to find procs in db
         var id int64
-        err := tx.Stmt(selectProcessCommand).QueryRow(window.process.name, window.process.cmdline).Scan(&id)
+        err := selectProcessCommand.QueryRow(window.process.name, window.process.cmdline).Scan(&id)
         switch err {
         case sql.ErrNoRows:
             // store window to db
-            res, _ := tx.Stmt(insertProcessCommand).Exec(window.process.name, window.process.cmdline)
+            res, _ := insertProcessCommand.Exec(window.process.name, window.process.cmdline)
             id, _ = res.LastInsertId()
             procs[window.process] = id
         default:
@@ -263,11 +276,11 @@ func processWindow(window Window) int64 {
     if _, ok := windows[window]; !ok {
         // try to find window in db
         var id int64
-        err := tx.Stmt(selectWindowCommand).QueryRow(window.title, window.class, proc_id).Scan(&id)
+        err := selectWindowCommand.QueryRow(window.title, window.class, proc_id).Scan(&id)
         switch err {
         case sql.ErrNoRows:
             // store window to db
-            res, _ := tx.Stmt(insertWindowCommand).Exec(window.title, window.class, proc_id)
+            res, _ := insertWindowCommand.Exec(window.title, window.class, proc_id)
             id, _ = res.LastInsertId()
             windows[window] = id
         default:
@@ -280,6 +293,7 @@ func processWindow(window Window) int64 {
 func bootstrapData() {
     windows = make(map[Window]int64)
     procs   = make(map[Process]int64)
+    keys    = make([]Event, 0)
     var err error
 
     // Determine path to db
@@ -345,12 +359,6 @@ func bootstrapData() {
         "INSERT INTO keys (window_id, key, at) VALUES (?, ?, ?)")
     if err != nil {
         panic("Could not create prepared statement." + err.Error())
-    }
-
-    // Begin transaction
-    tx, err = db.Begin()
-    if err != nil {
-        panic("Could not start db transaction")
     }
 }
 
