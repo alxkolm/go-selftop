@@ -259,11 +259,11 @@ func processWindow(window Window) int64 {
     if _, ok := procs[window.process]; !ok {
         // try to find procs in db
         var id int64
-        err := selectProcessCommand.QueryRow(window.process.name, window.process.cmdline).Scan(&id)
+        err := selectProcessCommand.QueryRow(strings.TrimSpace(window.process.name), strings.TrimSpace(window.process.cmdline)).Scan(&id)
         switch err {
         case sql.ErrNoRows:
             // store window to db
-            res, _ := insertProcessCommand.Exec(window.process.name, window.process.cmdline)
+            res, _ := insertProcessCommand.Exec(strings.TrimSpace(window.process.name), strings.TrimSpace(window.process.cmdline))
             id, _ = res.LastInsertId()
             procs[window.process] = id
         default:
@@ -276,11 +276,11 @@ func processWindow(window Window) int64 {
     if _, ok := windows[window]; !ok {
         // try to find window in db
         var id int64
-        err := selectWindowCommand.QueryRow(window.title, window.class, proc_id).Scan(&id)
+        err := selectWindowCommand.QueryRow(strings.TrimSpace(window.title), window.class, proc_id).Scan(&id)
         switch err {
         case sql.ErrNoRows:
             // store window to db
-            res, _ := insertWindowCommand.Exec(window.title, window.class, proc_id)
+            res, _ := insertWindowCommand.Exec(strings.TrimSpace(window.title), window.class, proc_id)
             id, _ = res.LastInsertId()
             windows[window] = id
         default:
