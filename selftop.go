@@ -251,7 +251,7 @@ func processEvent(event Event) {
         tx.Commit()
     }
     
-    fmt.Printf("Window %s time %.3f sec motions: %d, clicks: %d, keys: %d\n", event.window.class, float32(counter.time)/1000, counter.motions, counter.clicks, counter.keys)
+    // fmt.Printf("Window %s time %.3f sec motions: %d, clicks: %d, keys: %d\n", event.window.class, float32(counter.time)/1000, counter.motions, counter.clicks, counter.keys)
 }
 
 func processWindow(window Window) int64 {
