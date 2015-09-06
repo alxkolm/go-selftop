@@ -1,3 +1,7 @@
+This tool listen for user activity throughout [xrecord-echo](https://github.com/alxkolm/rust-xrecord-echo) and store user activity to database.
+
+It records keys, clicks, mouse move, windows titles and processes. Than this data will be visualized by [php-selftop](https://github.com/alxkolm/php-selftop).
+
 ## Install
 
 ### Prerequisites
@@ -14,3 +18,5 @@ Clone and run:
 Just run executable:
 
     ./selftop
+
+But I recommend use supervisor like [*runit*](http://smarden.org/runit/) to manage process (run on system startup and restart on crash).
