@@ -5,7 +5,7 @@ It records keys, clicks, mouse move, windows titles and processes. Than this dat
 ## Install
 
 ### Prerequisites
-- Go compiler
+- Go compiler ([Installing Go](https://golang.org/doc/install))
 - sqlite3
 
 Clone and run:
