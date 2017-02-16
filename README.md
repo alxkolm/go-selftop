@@ -12,6 +12,10 @@ Clone and run:
 
     go get github.com/gdamore/mangos github.com/mitchellh/go-homedir github.com/mattn/go-sqlite3
     go build -o selftop
+    
+### Using docker image to compile
+
+    docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp golang:1.6 /bin/bash -c "go get -d -v; go build -v -o selftop"
 
 ## Run
 
