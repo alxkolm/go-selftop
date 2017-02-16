@@ -2,17 +2,14 @@ package main
 
 import (
     "fmt"
-    "github.com/gdamore/mangos"
-    // "github.com/gdamore/mangos/protocol/pub"
-    "github.com/gdamore/mangos/protocol/sub"
-    // "github.com/gdamore/mangos/transport/ipc"
-    "github.com/gdamore/mangos/transport/tcp"
+    "github.com/go-mangos/mangos"
+    "github.com/go-mangos/mangos/protocol/sub"
+    "github.com/go-mangos/mangos/transport/tcp"
     "github.com/mitchellh/go-homedir"
     "os"
     "strings"
     "time"
     "database/sql"
-    // _ "github.com/go-sql-driver/mysql"
     _ "github.com/mattn/go-sqlite3"
     "encoding/json"
 )
