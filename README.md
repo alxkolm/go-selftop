@@ -24,3 +24,9 @@ Just run executable:
     ./selftop
 
 But I recommend use supervisor like [*runit*](http://smarden.org/runit/) to manage process (run on system startup and restart on crash).
+
+## Setup systemd
+
+	cp selftop.service ~/.config/systemd/user
+	systemctl --user enable selftop.service
+	systemctl --user start selftop.service
