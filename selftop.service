@@ -1,0 +1,13 @@
+[Unit]
+Description=Selftop
+Wants=graphical.target
+#Requires=graphical.target
+#After=xrecord-echo.service
+
+[Service]
+Type=simple
+ExecStart=/home/alx/soft/go-selftop/selftop
+Restart=always
+
+[Install]
+WantedBy=default.target
