@@ -6,7 +6,7 @@ Wants=graphical.target
 
 [Service]
 Type=simple
-ExecStart=/home/alx/soft/go-selftop/selftop
+ExecStart=selftop
 Restart=always
 
 [Install]
