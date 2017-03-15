@@ -12,6 +12,8 @@ import (
     "database/sql"
     _ "github.com/mattn/go-sqlite3"
     "encoding/json"
+    "golang.org/x/text/unicode/norm"
+    "golang.org/x/text/transform"
 )
 
 var sock mangos.Socket
@@ -256,11 +258,13 @@ func processWindow(window Window) int64 {
     if _, ok := procs[window.process]; !ok {
         // try to find procs in db
         var id int64
-        err := selectProcessCommand.QueryRow(strings.TrimSpace(window.process.name), strings.TrimSpace(window.process.cmdline)).Scan(&id)
+        var processName = window.process.name
+        var cmdline = stripCtlAndExtFromUnicode(window.process.cmdline)
+        err := selectProcessCommand.QueryRow(strings.TrimSpace(processName), strings.TrimSpace(cmdline)).Scan(&id)
         switch err {
         case sql.ErrNoRows:
             // store window to db
-            res, _ := insertProcessCommand.Exec(strings.TrimSpace(window.process.name), strings.TrimSpace(window.process.cmdline))
+            res, _ := insertProcessCommand.Exec(strings.TrimSpace(processName), strings.TrimSpace(cmdline))
             id, _ = res.LastInsertId()
             procs[window.process] = id
         default:
@@ -416,4 +420,17 @@ func initDbSchema() {
     if (err != nil) {
         panic("Could not init database schema. " + err.Error());
     }
+}
+
+func stripCtlAndExtFromUnicode(str string) string {
+    isOk := func(r rune) bool {
+        return r < 32
+    }
+    // The isOk filter is such that there is no need to chain to norm.NFC
+    t := transform.Chain(norm.NFKD, transform.RemoveFunc(isOk))
+    // This Transformer could also trivially be applied as an io.Reader
+    // or io.Writer filter to automatically do such filtering when reading
+    // or writing data anywhere.
+    str, _, _ = transform.String(t, str)
+    return str
 }
