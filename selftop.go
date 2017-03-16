@@ -258,13 +258,13 @@ func processWindow(window Window) int64 {
     if _, ok := procs[window.process]; !ok {
         // try to find procs in db
         var id int64
-        var processName = window.process.name
-        var cmdline = stripCtlAndExtFromUnicode(window.process.cmdline)
-        err := selectProcessCommand.QueryRow(strings.TrimSpace(processName), strings.TrimSpace(cmdline)).Scan(&id)
+        var processName = normalizeString(window.process.name)
+        var cmdline = normalizeString(window.process.cmdline)
+        err := selectProcessCommand.QueryRow(processName, cmdline).Scan(&id)
         switch err {
         case sql.ErrNoRows:
             // store window to db
-            res, _ := insertProcessCommand.Exec(strings.TrimSpace(processName), strings.TrimSpace(cmdline))
+            res, _ := insertProcessCommand.Exec(processName, cmdline)
             id, _ = res.LastInsertId()
             procs[window.process] = id
         default:
@@ -429,5 +429,12 @@ func stripCtlAndExtFromUnicode(str string) string {
     // or io.Writer filter to automatically do such filtering when reading
     // or writing data anywhere.
     str, _, _ = transform.String(t, str)
+    return str
+}
+
+func normalizeString(str string) string {
+    str = stripCtlAndExtFromUnicode(str)
+    str = strings.Trim(str, "\u0000")
+    str = strings.TrimSpace(str)
     return str
 }
