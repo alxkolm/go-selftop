@@ -423,11 +423,8 @@ func initDbSchema() {
 }
 
 func stripCtlAndExtFromUnicode(str string) string {
-    isOk := func(r rune) bool {
-        return r < 32
-    }
     // The isOk filter is such that there is no need to chain to norm.NFC
-    t := transform.Chain(norm.NFKD, transform.RemoveFunc(isOk))
+    t := transform.Chain(norm.NFC)
     // This Transformer could also trivially be applied as an io.Reader
     // or io.Writer filter to automatically do such filtering when reading
     // or writing data anywhere.
