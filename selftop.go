@@ -2,9 +2,9 @@ package main
 
 import (
     "fmt"
-    "github.com/go-mangos/mangos"
-    "github.com/go-mangos/mangos/protocol/sub"
-    "github.com/go-mangos/mangos/transport/tcp"
+    "nanomsg.org/go-mangos"
+    "nanomsg.org/go-mangos/protocol/sub"
+    "nanomsg.org/go-mangos/transport/tcp"
     "github.com/mitchellh/go-homedir"
     "os"
     "strings"
