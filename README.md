@@ -15,7 +15,7 @@ Clone and run:
     
 ### Using docker image to compile
 
-    docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp golang:1.6 /bin/bash -c "go get -d -v; go build -v -o selftop"
+    docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp golang:1 /bin/bash -c "go get -d -v; go build -v -o selftop"
 
 ## Run
 
